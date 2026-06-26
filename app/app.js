@@ -80,6 +80,7 @@ const elements = {
   scanCount: document.querySelector("#scanCount"),
   lastScan: document.querySelector("#lastScan"),
   connectButton: document.querySelector("#connectButton"),
+  triggerScanButton: document.querySelector("#triggerScanButton"),
   simulateButton: document.querySelector("#simulateButton"),
   disconnectButton: document.querySelector("#disconnectButton"),
   clearButton: document.querySelector("#clearButton"),
@@ -115,6 +116,7 @@ if ("serviceWorker" in navigator) {
 }
 
 elements.connectButton.addEventListener("click", connectBridge);
+elements.triggerScanButton.addEventListener("click", triggerRealScan);
 elements.simulateButton.addEventListener("click", simulateScan);
 elements.disconnectButton.addEventListener("click", disconnect);
 elements.clearButton.addEventListener("click", clearHistory);
@@ -189,6 +191,7 @@ function loadVehicle(plate) {
 
 function setScanControls(enabled) {
   elements.connectButton.disabled = !enabled;
+  elements.triggerScanButton.disabled = !enabled;
   elements.simulateButton.disabled = !enabled;
 }
 
@@ -415,6 +418,20 @@ function handleBridgeMessage(rawMessage) {
       recordMeasurement({ ...scan, source: message.source || "Logiciel local" });
     }
   }
+}
+
+function triggerRealScan() {
+  if (!state.bridgeSocket || state.bridgeSocket.readyState !== WebSocket.OPEN) {
+    showAlert("Pont local non connecte", "Connecter le logiciel local avant de lancer une mesure SCANDIAG.");
+    return;
+  }
+
+  state.bridgeSocket.send(JSON.stringify({
+    type: "trigger_scan",
+    plate: state.activePlate
+  }));
+  setConnection("Commande scan envoyee");
+  setScannerState("Scanner FACOM SCANDIAG · mesure demandee", "live");
 }
 
 function disconnect() {

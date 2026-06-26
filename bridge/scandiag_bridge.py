@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import json
+import queue
 import re
 import signal
 from datetime import datetime
@@ -16,6 +17,7 @@ DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
 
 clients = set()
+serial_command_queue = queue.Queue()
 
 
 def build_parser():
@@ -39,6 +41,8 @@ def build_parser():
     parser.add_argument("--serial-debug", action="store_true", help="Afficher les octets recus sur le port serie.")
     parser.add_argument("--serial-write", action="append", default=[], help="Envoyer une commande ASCII au port serie.")
     parser.add_argument("--serial-write-hex", action="append", default=[], help="Envoyer une commande hex, ex: 02 53 43 41 4E 03.")
+    parser.add_argument("--trigger-write", action="append", default=[], help="Commande ASCII envoyee quand la PWA demande une mesure.")
+    parser.add_argument("--trigger-write-hex", action="append", default=[], help="Commande hex envoyee quand la PWA demande une mesure.")
     parser.add_argument("--serial-crlf", action="store_true", help="Ajouter CRLF aux commandes ASCII envoyees.")
     parser.add_argument("--serial-log", help="Sauvegarder les trames recues dans un fichier.")
     parser.add_argument("--simulate", action="store_true")
@@ -54,10 +58,31 @@ async def websocket_handler(websocket):
     }))
 
     try:
-        async for _ in websocket:
-            pass
+        async for raw_message in websocket:
+            await handle_client_message(websocket, raw_message)
     finally:
         clients.discard(websocket)
+
+
+async def handle_client_message(websocket, raw_message):
+    try:
+        message = json.loads(raw_message)
+    except json.JSONDecodeError:
+        return
+
+    if message.get("type") not in {"trigger_scan", "scan_request"}:
+        return
+
+    serial_command_queue.put({
+        "type": "trigger_scan",
+        "plate": message.get("plate"),
+        "wheel": message.get("wheel")
+    })
+    await websocket.send(json.dumps({
+        "type": "status",
+        "label": "Commande scan transmise",
+        "detail": "ATTENTE REPONSE SCANDIAG"
+    }, ensure_ascii=False))
 
 
 def list_serial_ports():
@@ -225,6 +250,7 @@ async def read_serial(args):
                 send_startup_commands(port, args)
                 buffer = bytearray()
                 while True:
+                    drain_serial_commands(port, args, loop)
                     chunk = port.read(port.in_waiting or 1)
                     if not chunk:
                         if buffer:
@@ -281,17 +307,57 @@ def emit_serial_frame(frame, args, loop):
 
 
 def send_startup_commands(port, args):
-    for command in args.serial_write:
-        payload = command.encode("utf-8")
-        if args.serial_crlf:
-            payload += b"\r\n"
+    for payload in build_command_payloads(args.serial_write, args.serial_write_hex, args.serial_crlf):
         port.write(payload)
         print(f"TX {args.serial_port}: {to_hex(payload)} | {payload!r}")
 
-    for command in args.serial_write_hex:
-        payload = parse_hex_command(command)
+
+def drain_serial_commands(port, args, loop):
+    while True:
+        try:
+            command = serial_command_queue.get_nowait()
+        except queue.Empty:
+            return
+
+        if command.get("type") == "trigger_scan":
+            send_trigger_commands(port, args, loop)
+
+
+def send_trigger_commands(port, args, loop):
+    payloads = build_command_payloads(args.trigger_write, args.trigger_write_hex, args.serial_crlf)
+    if not payloads:
+        asyncio.run_coroutine_threadsafe(broadcast({
+            "type": "error",
+            "title": "Commande SCANDIAG manquante",
+            "detail": "Capturer la trame FACOM avec serial_proxy.py puis relancer le bridge avec --trigger-write-hex."
+        }), loop)
+        return
+
+    for payload in payloads:
         port.write(payload)
-        print(f"TX {args.serial_port}: {to_hex(payload)} | {payload!r}")
+        port.flush()
+        print(f"TRIGGER {args.serial_port}: {to_hex(payload)} | {payload!r}")
+
+    asyncio.run_coroutine_threadsafe(broadcast({
+        "type": "status",
+        "label": "Commande scan envoyee",
+        "detail": "SCANDIAG EN MESURE"
+    }), loop)
+
+
+def build_command_payloads(ascii_commands, hex_commands, add_crlf):
+    payloads = []
+
+    for command in ascii_commands:
+        payload = command.encode("utf-8")
+        if add_crlf:
+            payload += b"\r\n"
+        payloads.append(payload)
+
+    for command in hex_commands:
+        payloads.append(parse_hex_command(command))
+
+    return payloads
 
 
 def parse_hex_command(command):

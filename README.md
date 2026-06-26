@@ -6,6 +6,9 @@ Livrables disponibles :
 - Prompt Partie 2 : `docs/partie-2-prompt-pwa-monitoring.md`
 - Logiciel local Partie 3 : `docs/partie-3-logiciel-local.md`
 - Notes reverse engineering : `docs/reverse-engineering-scandiag.md`
+- Proxy COM virtuel : `docs/option-2-proxy-com-virtuel.md`
+- Mode FACOM arriere-plan : `docs/mode-facom-arriere-plan.md`
+- Livrable final connexion : `docs/livrable-final-connexion-scandiag.md`
 - PWA Monitoring EV avec simulation et Web Bluetooth : `app/index.html`
 
 ## Lancer le POC
@@ -51,3 +54,28 @@ Si `temp.raw` est mis a jour par FACOM :
 ```powershell
 python temp_raw_bridge.py --plate AY-389-IM
 ```
+
+## Mode stable avec FACOM en arriere-plan
+
+Pendant la demo, le mode le plus fiable est de laisser FACOM ouvert/minimise pour garder le SCANDIAG initialise, puis d'utiliser la PWA comme interface principale :
+
+```powershell
+cd bridge
+.\.venv\Scripts\Activate.ps1
+python temp_raw_bridge.py --plate AY-389-IM
+```
+
+La PWA recoit automatiquement une mesure quand FACOM met a jour `C:\ProgramData\Facom\ScanDiag\temp.raw`.
+
+## Utilisation finale sans logiciel FACOM
+
+Apres capture de la commande proprietaire avec le proxy COM virtuel :
+
+```powershell
+cd bridge
+.\.venv\Scripts\Activate.ps1
+python scandiag_bridge.py --serial-port COM4 --serial-baudrate 9600 --trigger-write-hex "AA BB CC DD"
+```
+
+Remplacer `AA BB CC DD` par la trame reelle trouvee dans `serial-proxy.log`.
+Dans la PWA, cliquer ensuite `Connecter le logiciel local`, puis `Mesure SCANDIAG`.

@@ -21,6 +21,8 @@ def build_parser():
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--plate", default=None)
     parser.add_argument("--poll", type=float, default=0.5)
+    parser.add_argument("--emit-existing", action="store_true", help="Envoyer aussi le temp.raw deja present au demarrage.")
+    parser.add_argument("--wheels", default="FL,FR,RL,RR", help="Ordre des roues a alimenter dans la PWA.")
     return parser
 
 
@@ -53,8 +55,15 @@ async def broadcast(message):
         clients.discard(websocket)
 
 
-async def watch_raw(path, plate, poll):
+async def watch_raw(path, plate, poll, emit_existing, wheels):
     last_signature = None
+    wheel_index = 0
+    if not emit_existing:
+        try:
+            stat = path.stat()
+            last_signature = (stat.st_mtime_ns, stat.st_size)
+        except OSError:
+            last_signature = None
 
     while True:
         try:
@@ -66,14 +75,16 @@ async def watch_raw(path, plate, poll):
 
         if signature != last_signature:
             last_signature = signature
-            scan = parse_raw_scan(path, plate)
+            wheel = wheels[wheel_index % len(wheels)]
+            wheel_index += 1
+            scan = parse_raw_scan(path, plate, wheel)
             if scan:
                 await broadcast(scan)
 
         await asyncio.sleep(poll)
 
 
-def parse_raw_scan(path, plate):
+def parse_raw_scan(path, plate, wheel):
     data = path.read_bytes()
 
     if len(data) <= 12:
@@ -99,6 +110,8 @@ def parse_raw_scan(path, plate):
         "source": "FACOM temp.raw",
         "time": datetime.now().isoformat(),
         "plate": plate,
+        "wheel": wheel,
+        "scanner": f"SC{wheel}",
         "tire": tire,
         "disk": disk,
         "rawText": f"temp.raw bytes={len(data)} median={median} p90={high_band}"
@@ -118,11 +131,15 @@ def clamp(value, minimum, maximum):
 async def main():
     args = build_parser().parse_args()
     path = Path(args.path)
+    wheels = [wheel.strip().upper() for wheel in args.wheels.split(",") if wheel.strip()]
+    if not wheels:
+        raise SystemExit("La liste --wheels ne peut pas etre vide.")
 
     async with websockets.serve(websocket_handler, args.host, args.port):
         print(f"Pont temp.raw actif: ws://{args.host}:{args.port}")
         print(f"Surveillance: {path}")
-        await watch_raw(path, args.plate, args.poll)
+        print(f"Ordre roues: {', '.join(wheels)}")
+        await watch_raw(path, args.plate, args.poll, args.emit_existing, wheels)
 
 
 if __name__ == "__main__":

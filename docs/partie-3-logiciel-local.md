@@ -100,6 +100,24 @@ La PWA ecoute :
 ws://localhost:8765
 ```
 
+## Declencher une mesure depuis la PWA
+
+Une fois la trame proprietaire capturee avec le proxy COM virtuel, le bridge peut l'envoyer uniquement quand l'operateur clique `Mesure SCANDIAG` dans la PWA.
+
+```powershell
+python scandiag_bridge.py --serial-port COM4 --serial-baudrate 9600 --trigger-write-hex "AA BB CC DD"
+```
+
+`AA BB CC DD` doit etre remplace par la commande reelle observee dans `serial-proxy.log`.
+
+Ce mode correspond a l'exploitation finale :
+
+```text
+PWA -> WebSocket local -> bridge Python -> COM4 -> SCANDIAG
+```
+
+Le logiciel FACOM n'est alors plus ouvert pendant le scan. Il a seulement servi a configurer l'appareil et a capturer le protocole.
+
 ## Mode simulation logiciel
 
 Pour tester toute la chaine sans appareil :
