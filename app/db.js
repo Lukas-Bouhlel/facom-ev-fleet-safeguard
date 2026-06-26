@@ -15,10 +15,18 @@ const SCHEMA = `
     disk REAL,
     status TEXT,
     scanner_id TEXT,
-    ts TEXT NOT NULL
+    ts TEXT NOT NULL,
+    day TEXT
   );
   CREATE INDEX IF NOT EXISTS idx_meas_plate ON measurement (plate, ts);
 `;
+
+// Jour local (AAAA-MM-JJ) deduit d'un timestamp ISO.
+function localDay(ts) {
+  const d = new Date(ts);
+  const pad = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
 
 let db = null;
 let saveTimer = null;
@@ -59,7 +67,29 @@ export async function initDb() {
   const saved = await idbGet(DB_KEY);
   db = saved ? new SQL.Database(new Uint8Array(saved)) : new SQL.Database();
   db.run(SCHEMA);
+  migrate();
   return db;
+}
+
+// Garantit la colonne `day` + l'unicite (plate, wheel, day) : 1 mesure / roue / jour.
+function migrate() {
+  const columns = rows(db.exec("PRAGMA table_info(measurement)")).map(c => c.name);
+
+  if (!columns.includes("day")) {
+    db.run("ALTER TABLE measurement ADD COLUMN day TEXT");
+  }
+
+  db.run("UPDATE measurement SET day = substr(ts, 1, 10) WHERE day IS NULL");
+
+  // Dedoublonne l'existant avant de poser l'index unique : on garde la mesure la plus recente.
+  db.run(
+    `DELETE FROM measurement
+     WHERE id NOT IN (SELECT MAX(id) FROM measurement GROUP BY plate, wheel, day)`
+  );
+
+  db.run(
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_meas_unique ON measurement (plate, wheel, day)"
+  );
 }
 
 function scheduleSave() {
@@ -89,12 +119,21 @@ function rows(result) {
   return values.map(row => Object.fromEntries(columns.map((col, i) => [col, row[i]])));
 }
 
+// Upsert : 1 mesure par roue et par jour. Re-mesurer la meme roue le meme
+// jour ecrase l'ancienne valeur (ON CONFLICT sur plate+wheel+day).
 export function insertMeasurement(measurement) {
   if (!db) {
     return;
   }
   db.run(
-    "INSERT INTO measurement (plate, wheel, tire, disk, status, scanner_id, ts) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    `INSERT INTO measurement (plate, wheel, tire, disk, status, scanner_id, ts, day)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT (plate, wheel, day) DO UPDATE SET
+       tire = excluded.tire,
+       disk = excluded.disk,
+       status = excluded.status,
+       scanner_id = excluded.scanner_id,
+       ts = excluded.ts`,
     [
       measurement.plate,
       measurement.wheel,
@@ -102,7 +141,8 @@ export function insertMeasurement(measurement) {
       measurement.disk,
       measurement.status,
       measurement.scannerId ?? null,
-      measurement.ts
+      measurement.ts,
+      localDay(measurement.ts)
     ]
   );
   scheduleSave();
