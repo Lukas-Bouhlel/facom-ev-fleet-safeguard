@@ -40,7 +40,7 @@ Terminal 1 - bridge local :
 ```powershell
 cd C:\Users\lukas\OneDrive\Bureau\Portfolio\facom-ev-fleet-safeguard\bridge
 .\.venv\Scripts\Activate.ps1
-python temp_raw_bridge.py --plate AY-389-IM --wheels FL,FR,RL,RR
+python temp_raw_bridge.py --wheels FL,FR,RL,RR
 ```
 
 Terminal 2 - PWA :
@@ -75,8 +75,10 @@ RR = arriere droite
 Si l'ordre terrain est different, changer le parametre :
 
 ```powershell
-python temp_raw_bridge.py --plate AY-389-IM --wheels FL,RL,FR,RR
+python temp_raw_bridge.py --wheels FL,RL,FR,RR
 ```
+
+La plaque n'est pas transmise par la commande bridge : elle est saisie dans la PWA et utilisee pour creer l'analyse dans SQLite. Le bridge transmet uniquement la roue, les valeurs pneu/disque et l'heure de mesure.
 
 ## Positionnement pour le livrable
 

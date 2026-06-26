@@ -43,10 +43,10 @@ Commande :
 ```powershell
 cd bridge
 .\.venv\Scripts\Activate.ps1
-python temp_raw_bridge.py --plate AY-389-IM
+python temp_raw_bridge.py --wheels FL,FR,RL,RR
 ```
 
-La PWA recoit une mesure automatiquement quand le fichier suivant est modifie :
+La plaque est saisie dans la PWA au demarrage de l'analyse. La PWA recoit une mesure automatiquement quand le fichier suivant est modifie :
 
 ```text
 C:\ProgramData\Facom\ScanDiag\temp.raw

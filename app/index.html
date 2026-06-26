@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#0d1014">
-    <title>FACOM SCANDIAG · Monitoring EV</title>
+    <title>FACOM SCANDIAG - Monitoring EV</title>
     <link rel="manifest" href="./manifest.webmanifest">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15,12 +15,12 @@
   <body>
     <div class="plate-gate" id="plateGate" role="dialog" aria-modal="true" aria-labelledby="plateGateTitle">
       <form class="plate-gate-card" id="plateForm">
-        <p class="eyebrow">FACOM SCANDIAG · Monitoring EV</p>
-        <h2 id="plateGateTitle">Identifier le véhicule</h2>
-        <p class="plate-gate-hint">Saisir la plaque d'immatriculation pour démarrer le scan des pneus.</p>
+        <p class="eyebrow">FACOM SCANDIAG - Monitoring EV</p>
+        <h2 id="plateGateTitle">Identifier le vehicule</h2>
+        <p class="plate-gate-hint">Saisir la plaque d'immatriculation pour demarrer le scan des pneus.</p>
 
         <div class="eu-plate">
-          <span class="eu-plate-band"><span class="eu-stars">★</span><span class="eu-country">F</span></span>
+          <span class="eu-plate-band"><span class="eu-stars">*</span><span class="eu-country">F</span></span>
           <input
             id="plateInput"
             name="plate"
@@ -35,7 +35,7 @@
         </div>
 
         <p class="plate-gate-error" id="plateError" hidden>Format attendu : AB-123-CD.</p>
-        <button type="submit" class="btn btn-primary">Démarrer le scan</button>
+        <button type="submit" class="btn btn-primary">Demarrer le scan</button>
       </form>
     </div>
 
@@ -43,7 +43,7 @@
       <div class="detail-card">
         <header class="detail-head">
           <div>
-            <span class="plate-readout-label">Analyse · véhicule</span>
+            <span class="plate-readout-label">Analyse - vehicule</span>
             <h2 id="detailPlate">--</h2>
             <p class="detail-meta"><span id="detailTime">--</span></p>
           </div>
@@ -53,30 +53,30 @@
           </div>
         </header>
 
-        <div class="vehicle-plan" id="detailPlan" aria-label="Plan du véhicule vu de dessus">
+        <div class="vehicle-plan" id="detailPlan" aria-label="Plan du vehicule vu de dessus">
           <span class="plan-axis plan-front">Avant</span>
           <div class="wheel" id="dWheelFL" data-pos="FL" data-status="idle">
             <span class="wheel-pos">Av. gauche</span>
-            <span class="wheel-metric"><i>Pneu</i><b data-field="tire">—</b></span>
-            <span class="wheel-metric"><i>Disque</i><b data-field="disk">—</b></span>
+            <span class="wheel-metric"><i>Pneu</i><b data-field="tire">-</b></span>
+            <span class="wheel-metric"><i>Disque</i><b data-field="disk">-</b></span>
           </div>
           <div class="car"><span class="car-windshield"></span><span class="car-roof"></span></div>
           <div class="wheel" id="dWheelFR" data-pos="FR" data-status="idle">
             <span class="wheel-pos">Av. droite</span>
-            <span class="wheel-metric"><i>Pneu</i><b data-field="tire">—</b></span>
-            <span class="wheel-metric"><i>Disque</i><b data-field="disk">—</b></span>
+            <span class="wheel-metric"><i>Pneu</i><b data-field="tire">-</b></span>
+            <span class="wheel-metric"><i>Disque</i><b data-field="disk">-</b></span>
           </div>
           <div class="wheel" id="dWheelRL" data-pos="RL" data-status="idle">
             <span class="wheel-pos">Ar. gauche</span>
-            <span class="wheel-metric"><i>Pneu</i><b data-field="tire">—</b></span>
-            <span class="wheel-metric"><i>Disque</i><b data-field="disk">—</b></span>
+            <span class="wheel-metric"><i>Pneu</i><b data-field="tire">-</b></span>
+            <span class="wheel-metric"><i>Disque</i><b data-field="disk">-</b></span>
           </div>
           <div class="wheel" id="dWheelRR" data-pos="RR" data-status="idle">
             <span class="wheel-pos">Ar. droite</span>
-            <span class="wheel-metric"><i>Pneu</i><b data-field="tire">—</b></span>
-            <span class="wheel-metric"><i>Disque</i><b data-field="disk">—</b></span>
+            <span class="wheel-metric"><i>Pneu</i><b data-field="tire">-</b></span>
+            <span class="wheel-metric"><i>Disque</i><b data-field="disk">-</b></span>
           </div>
-          <span class="plan-axis plan-rear">Arrière</span>
+          <span class="plan-axis plan-rear">Arriere</span>
         </div>
       </div>
     </div>
@@ -85,7 +85,7 @@
       <header class="topbar">
         <div class="brand">
           <span class="brand-mark">FACOM</span>
-          <span class="brand-sub">SCANDIAG · Monitoring EV</span>
+          <span class="brand-sub">SCANDIAG - Monitoring EV</span>
         </div>
         <nav class="view-tabs" aria-label="Navigation principale">
           <button type="button" class="view-tab is-active" data-view="measure">Mesure</button>
@@ -97,48 +97,47 @@
         </div>
       </header>
 
-      <!-- ===================== Vue Mesure ===================== -->
       <section class="view" id="viewMeasure">
         <div class="scan-card" id="scanCard">
           <div class="scan-head">
-            <p class="eyebrow" id="scannerLabel">Scanner FACOM SCANDIAG · en attente de tronçon</p>
+            <p class="eyebrow" id="scannerLabel">Scanner FACOM SCANDIAG - en attente de troncon</p>
             <span class="status-chip" id="statusChip" data-status="idle">En attente</span>
           </div>
 
           <div class="plate-readout">
-            <span class="plate-readout-label">Véhicule en cours</span>
+            <span class="plate-readout-label">Vehicule en cours</span>
             <h1 id="currentPlate">--</h1>
           </div>
 
-          <div class="vehicle-plan" aria-label="Plan du véhicule vu de dessus">
+          <div class="vehicle-plan" aria-label="Plan du vehicule vu de dessus">
             <span class="plan-axis plan-front">Avant</span>
             <div class="wheel" id="wheelFL" data-pos="FL" data-status="idle">
               <span class="wheel-pos">Av. gauche</span>
-              <span class="wheel-metric"><i>Pneu</i><b data-field="tire">—</b></span>
-              <span class="wheel-metric"><i>Disque</i><b data-field="disk">—</b></span>
+              <span class="wheel-metric"><i>Pneu</i><b data-field="tire">-</b></span>
+              <span class="wheel-metric"><i>Disque</i><b data-field="disk">-</b></span>
             </div>
             <div class="car"><span class="car-windshield"></span><span class="car-roof"></span></div>
             <div class="wheel" id="wheelFR" data-pos="FR" data-status="idle">
               <span class="wheel-pos">Av. droite</span>
-              <span class="wheel-metric"><i>Pneu</i><b data-field="tire">—</b></span>
-              <span class="wheel-metric"><i>Disque</i><b data-field="disk">—</b></span>
+              <span class="wheel-metric"><i>Pneu</i><b data-field="tire">-</b></span>
+              <span class="wheel-metric"><i>Disque</i><b data-field="disk">-</b></span>
             </div>
             <div class="wheel" id="wheelRL" data-pos="RL" data-status="idle">
               <span class="wheel-pos">Ar. gauche</span>
-              <span class="wheel-metric"><i>Pneu</i><b data-field="tire">—</b></span>
-              <span class="wheel-metric"><i>Disque</i><b data-field="disk">—</b></span>
+              <span class="wheel-metric"><i>Pneu</i><b data-field="tire">-</b></span>
+              <span class="wheel-metric"><i>Disque</i><b data-field="disk">-</b></span>
             </div>
             <div class="wheel" id="wheelRR" data-pos="RR" data-status="idle">
               <span class="wheel-pos">Ar. droite</span>
-              <span class="wheel-metric"><i>Pneu</i><b data-field="tire">—</b></span>
-              <span class="wheel-metric"><i>Disque</i><b data-field="disk">—</b></span>
+              <span class="wheel-metric"><i>Pneu</i><b data-field="tire">-</b></span>
+              <span class="wheel-metric"><i>Disque</i><b data-field="disk">-</b></span>
             </div>
-            <span class="plan-axis plan-rear">Arrière</span>
+            <span class="plan-axis plan-rear">Arriere</span>
           </div>
 
           <div class="alert-panel" id="alertPanel" hidden>
             <strong id="alertTitle">Alerte critique</strong>
-            <span id="alertText">Contrôle prioritaire recommandé.</span>
+            <span id="alertText">Controle prioritaire recommande.</span>
           </div>
         </div>
 
@@ -148,27 +147,28 @@
             <p id="connectionStatusMirror">En attente</p>
           </div>
           <div class="stat-tile">
-            <h2>Véhicule actif</h2>
+            <h2>Vehicule actif</h2>
             <p id="lastScan">--</p>
           </div>
           <div class="stat-tile">
-            <h2>Roues mesurées</h2>
+            <h2>Roues mesurees</h2>
             <p id="wheelCount">0 / 4</p>
           </div>
         </div>
 
         <div class="actions">
-          <button type="button" class="btn btn-primary" id="simulateButton">Simuler une mesure</button>
+          <button type="button" class="btn btn-primary" id="triggerScanButton" hidden>Mesure SCANDIAG</button>
+          <button type="button" class="btn btn-primary" id="simulateButton" hidden>Simuler une mesure</button>
           <button type="button" class="btn" id="connectButton">Connecter le logiciel local</button>
-          <button type="button" class="btn" id="changeVehicleButton">Nouveau véhicule</button>
+          <button type="button" class="btn" id="changeVehicleButton">Nouveau vehicule</button>
         </div>
 
         <details class="ble-config">
-          <summary>Configuration avancée</summary>
+          <summary>Configuration avancee</summary>
 
           <div class="config-block">
-            <h3>Scanners → roues</h3>
-            <p class="config-hint">Associer chaque scanner FACOM à une roue. Au moins un scanner est requis.</p>
+            <h3>Scanners vers roues</h3>
+            <p class="config-hint">Associer chaque scanner FACOM a une roue. Au moins un scanner est requis.</p>
             <div id="scannerRows" class="scanner-rows"></div>
             <button type="button" class="btn btn-small" id="addScannerButton">Ajouter un scanner</button>
           </div>
@@ -181,117 +181,42 @@
                 <input id="bridgeUrl" name="bridgeUrl" value="ws://localhost:8765" autocomplete="off">
               </label>
               <label>
-                Préfixe appareil
+                Prefixe appareil
                 <input id="namePrefix" name="namePrefix" value="FACOM_SCANDIAG_" autocomplete="off">
               </label>
               <label>
                 UUID service
-                <input id="serviceUuid" name="serviceUuid" placeholder="À renseigner après scan BLE" autocomplete="off">
+                <input id="serviceUuid" name="serviceUuid" placeholder="A renseigner apres scan BLE" autocomplete="off">
               </label>
               <label>
-                UUID caractéristique
-                <input id="characteristicUuid" name="characteristicUuid" placeholder="À renseigner après scan BLE" autocomplete="off">
+                UUID caracteristique
+                <input id="characteristicUuid" name="characteristicUuid" placeholder="A renseigner apres scan BLE" autocomplete="off">
               </label>
             </div>
             <div class="config-actions">
               <button type="submit" class="btn btn-small">Sauvegarder</button>
-              <button type="button" class="btn btn-small" id="disconnectButton">Déconnecter</button>
+              <button type="button" class="btn btn-small" id="disconnectButton">Deconnecter</button>
               <button type="button" class="btn btn-small" id="clearButton">Effacer toutes les analyses</button>
             </div>
           </form>
         </details>
       </section>
 
-      <section class="status-grid">
-        <div class="stat-tile">
-          <h2>Connexion</h2>
-          <p id="connectionStatusMirror">En attente</p>
-        </div>
-        <div class="stat-tile">
-          <h2>Véhicule actif</h2>
-          <p id="lastScan">--</p>
-        </div>
-        <div class="stat-tile">
-          <h2>Roues mesurées</h2>
-          <p id="wheelCount">0 / 4</p>
-        </div>
-        <div class="stat-tile">
-          <h2>Mesures en base</h2>
-          <p id="scanCount">0</p>
-        </div>
-      </section>
-
-      <section class="table-wrap" aria-label="Historique des mesures">
-        <table>
-          <thead>
-            <tr>
-              <th>Heure</th>
-              <th>Roue</th>
-              <th>Pneu (mm)</th>
-              <th>Disque (mm)</th>
-              <th>Statut</th>
-            </tr>
-          </thead>
-          <tbody id="scanRows">
-            <tr class="empty-row">
-              <td colspan="5">Aucune mesure enregistrée</td>
-            </tr>
-          </tbody>
-        </table>
-      </section>
-
-      <section class="actions">
-        <button type="button" class="btn btn-primary" id="triggerScanButton">Mesure SCANDIAG</button>
-        <button type="button" class="btn btn-primary" id="simulateButton">Simuler une mesure</button>
-        <button type="button" class="btn" id="connectButton">Connecter le logiciel local</button>
-        <button type="button" class="btn" id="changeVehicleButton">Nouveau véhicule</button>
-      </section>
-
-      <details class="ble-config">
-        <summary>Configuration avancée</summary>
-
-        <div class="config-block">
-          <h3>Scanners → roues</h3>
-          <p class="config-hint">Associer chaque scanner FACOM à une roue. Au moins un scanner est requis.</p>
-          <div id="scannerRows" class="scanner-rows"></div>
-          <button type="button" class="btn btn-small" id="addScannerButton">Ajouter un scanner</button>
-        </div>
-
-        <form id="configForm" class="config-block">
-          <h3>Liaison BLE / pont local</h3>
-          <div class="config-grid">
-            <label>
-              Pont local
-              <input id="bridgeUrl" name="bridgeUrl" value="ws://localhost:8765" autocomplete="off">
-            </label>
-            <label>
-              Préfixe appareil
-              <input id="namePrefix" name="namePrefix" value="FACOM_SCANDIAG_" autocomplete="off">
-            </label>
-            <label>
-              UUID service
-              <input id="serviceUuid" name="serviceUuid" placeholder="À renseigner après scan BLE" autocomplete="off">
-            </label>
-            <label>
-              UUID caractéristique
-              <input id="characteristicUuid" name="characteristicUuid" placeholder="À renseigner après scan BLE" autocomplete="off">
-            </label>
-          </div>
-          <div class="dash-controls">
-            <input
-              type="search"
-              id="dashSearch"
-              class="dash-search"
-              placeholder="Filtrer par immatriculation"
-              autocomplete="off"
-              aria-label="Filtrer par immatriculation">
-            <select id="dashStatus" class="dash-status" aria-label="Filtrer par état">
-              <option value="">Tous les états</option>
-              <option value="CONFORME">Conforme</option>
-              <option value="VIGILANCE">Vigilance</option>
-              <option value="CRITIQUE">Critique</option>
-            </select>
-          </div>
+      <section class="view" id="viewDashboard" hidden>
+        <div class="dash-controls">
+          <input
+            type="search"
+            id="dashSearch"
+            class="dash-search"
+            placeholder="Filtrer par immatriculation"
+            autocomplete="off"
+            aria-label="Filtrer par immatriculation">
+          <select id="dashStatus" class="dash-status" aria-label="Filtrer par etat">
+            <option value="">Tous les etats</option>
+            <option value="CONFORME">Conforme</option>
+            <option value="VIGILANCE">Vigilance</option>
+            <option value="CRITIQUE">Critique</option>
+          </select>
         </div>
 
         <div class="table-wrap">
@@ -299,7 +224,7 @@
             <thead>
               <tr>
                 <th><button type="button" class="th-sort" data-sort="plate">Immatriculation</button></th>
-                <th><button type="button" class="th-sort" data-sort="status">État</button></th>
+                <th><button type="button" class="th-sort" data-sort="status">Etat</button></th>
                 <th><button type="button" class="th-sort is-active" data-sort="updated_at">Horodatage</button></th>
               </tr>
             </thead>
@@ -310,7 +235,7 @@
         </div>
 
         <div class="dash-pager">
-          <button type="button" class="btn btn-small" id="dashPrev">Précédent</button>
+          <button type="button" class="btn btn-small" id="dashPrev">Precedent</button>
           <span class="dash-pageinfo" id="dashPageInfo">Page 1 / 1</span>
           <button type="button" class="btn btn-small" id="dashNext">Suivant</button>
         </div>

@@ -144,7 +144,7 @@ elements.triggerScanButton.addEventListener("click", triggerRealScan);
 elements.simulateButton.addEventListener("click", simulateScan);
 elements.disconnectButton.addEventListener("click", disconnect);
 elements.clearButton.addEventListener("click", clearHistory);
-elements.changeVehicleButton.addEventListener("click", openPlateGate);
+elements.changeVehicleButton.addEventListener("click", () => openPlateGate({ clear: true }));
 elements.addScannerButton.addEventListener("click", addScanner);
 
 elements.plateForm.addEventListener("submit", event => {
@@ -197,8 +197,12 @@ elements.detailOverlay.addEventListener("click", event => {
 function setView(view) {
   state.view = view;
   const isMeasure = view === "measure";
-  elements.viewMeasure.hidden = !isMeasure;
-  elements.viewDashboard.hidden = isMeasure;
+  if (elements.viewMeasure) {
+    elements.viewMeasure.hidden = !isMeasure;
+  }
+  if (elements.viewDashboard) {
+    elements.viewDashboard.hidden = isMeasure;
+  }
   for (const tab of elements.viewTabs) {
     tab.classList.toggle("is-active", tab.dataset.view === view);
   }
@@ -216,9 +220,9 @@ function formatPlate(raw) {
   return parts.filter(Boolean).join("-");
 }
 
-function openPlateGate() {
+function openPlateGate({ clear = false } = {}) {
   elements.plateError.hidden = true;
-  elements.plateInput.value = state.activePlate || "";
+  elements.plateInput.value = clear ? "" : state.activePlate || "";
   elements.plateGate.classList.add("visible");
   setScanControls(false);
   requestAnimationFrame(() => elements.plateInput.focus());
@@ -233,15 +237,18 @@ function submitPlate() {
     return;
   }
 
-  // Nouvelle selection = nouvelle analyse (creee a la premiere mesure).
+  // Nouvelle selection = nouvelle analyse sauvegardee immediatement.
+  const ts = new Date().toISOString();
   state.activePlate = plate;
   state.wheels = emptyWheels();
-  state.currentAnalysisId = null;
+  state.currentAnalysisId = createAnalysis(plate, ts);
+  resetBridgeSequence();
   elements.plateGate.classList.remove("visible");
   setView("measure");
   setScanControls(true);
   setConnection(`Véhicule ${plate} prêt au scan`);
   render();
+  renderDashboard();
 }
 
 function setScanControls(enabled) {
@@ -488,6 +495,17 @@ function triggerRealScan() {
   setScannerState("Scanner FACOM SCANDIAG · mesure demandee", "live");
 }
 
+function resetBridgeSequence() {
+  if (!state.bridgeSocket || state.bridgeSocket.readyState !== WebSocket.OPEN) {
+    return;
+  }
+
+  state.bridgeSocket.send(JSON.stringify({
+    type: "reset_sequence",
+    plate: state.activePlate
+  }));
+}
+
 function disconnect() {
   if (state.characteristic) {
     state.characteristic.removeEventListener("characteristicvaluechanged", handleNotification);
@@ -562,13 +580,16 @@ function recordMeasurement(scan) {
   }
 
   const tire = Number(scan.tire);
-  const disk = Number(scan.disk);
+  const disk = scan.disk === null || scan.disk === undefined || scan.disk === ""
+    ? null
+    : Number(scan.disk);
+  const diskValue = Number.isFinite(disk) ? disk : null;
   const status = getStatus({ tire, disk });
   const ts = scan.time ? new Date(scan.time).toISOString() : new Date().toISOString();
 
-  state.wheels[wheel] = { tire, disk, status, scannerId: scan.scanner ?? null, ts };
+  state.wheels[wheel] = { tire, disk: diskValue, status, scannerId: scan.scanner ?? null, ts };
 
-  // Cree l'analyse a la premiere mesure de la session.
+  // Secours si une mesure arrive avant la creation de l'analyse.
   if (!state.currentAnalysisId) {
     state.currentAnalysisId = createAnalysis(state.activePlate, ts);
   }
@@ -577,7 +598,7 @@ function recordMeasurement(scan) {
     plate: state.activePlate,
     wheel,
     tire,
-    disk,
+    disk: diskValue,
     status,
     scannerId: scan.scanner ?? null,
     ts
@@ -592,6 +613,10 @@ function recordMeasurement(scan) {
     `Scanner FACOM SCANDIAG · ${scan.source || "FACOM SCANDIAG"} · ${shortLabel(wheel)}`;
   render();
   if (state.view === "dashboard") {
+    renderDashboard();
+  }
+  if (measuredWheels().length === WHEEL_CODES.length) {
+    setConnection("Analyse enregistree");
     renderDashboard();
   }
 }
@@ -662,8 +687,8 @@ function paintWheels(prefix, wheels) {
     }
 
     cell.dataset.status = String(data.status).toLowerCase();
-    tireField.textContent = `${formatNumber(data.tire)} mm`;
-    diskField.textContent = `${formatNumber(data.disk)} mm`;
+    tireField.textContent = Number.isFinite(data.tire) ? `${formatNumber(data.tire)} mm` : "-";
+    diskField.textContent = Number.isFinite(data.disk) ? `${formatNumber(data.disk)} mm` : "-";
   }
 }
 
@@ -682,10 +707,16 @@ function overallStatus(measured) {
 }
 
 function getStatus(scan) {
-  if (scan.tire < THRESHOLDS.tireCritical || scan.disk < THRESHOLDS.diskCritical) {
+  if (Number.isFinite(scan.tire) && scan.tire < THRESHOLDS.tireCritical) {
     return "CRITIQUE";
   }
-  if (scan.tire < THRESHOLDS.tireWarning || scan.disk < THRESHOLDS.diskWarning) {
+  if (Number.isFinite(scan.disk) && scan.disk < THRESHOLDS.diskCritical) {
+    return "CRITIQUE";
+  }
+  if (Number.isFinite(scan.tire) && scan.tire < THRESHOLDS.tireWarning) {
+    return "VIGILANCE";
+  }
+  if (Number.isFinite(scan.disk) && scan.disk < THRESHOLDS.diskWarning) {
     return "VIGILANCE";
   }
   return "CONFORME";
@@ -890,7 +921,7 @@ function normalizeScan(payload) {
   return {
     plate: payload.plate ?? payload.immat ?? payload.registration,
     tire: Number.isFinite(tire) ? tire : 4.8,
-    disk: Number.isFinite(disk) ? disk : 1.7,
+    disk: Number.isFinite(disk) ? disk : null,
     scanner: payload.scanner ?? payload.scannerId ?? payload.capteur,
     wheel: payload.wheel ?? payload.roue
   };

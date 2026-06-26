@@ -79,7 +79,7 @@ C:\ProgramData\Facom\ScanDiag\temp.raw
 Le fichier contient une matrice de profil brute. Pour une demonstration POC, le bridge peut surveiller ce fichier et generer un scan a chaque nouvelle capture :
 
 ```powershell
-python temp_raw_bridge.py --plate AY-389-IM
+python temp_raw_bridge.py --wheels FL,FR,RL,RR
 ```
 
-Puis utiliser normalement le logiciel FACOM pour effectuer les mesures. Quand `temp.raw` est modifie, la PWA recoit un scan via `ws://localhost:8765`.
+Puis utiliser normalement le logiciel FACOM pour effectuer les mesures. Quand `temp.raw` est modifie, la PWA recoit un scan via `ws://localhost:8765`. La plaque est saisie directement dans la PWA.

@@ -10,6 +10,7 @@ import websockets
 
 DEFAULT_RAW_PATH = r"C:\ProgramData\Facom\ScanDiag\temp.raw"
 clients = set()
+sequence_reset_requested = False
 
 
 def build_parser():
@@ -19,7 +20,6 @@ def build_parser():
     parser.add_argument("--path", default=DEFAULT_RAW_PATH)
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
-    parser.add_argument("--plate", default=None)
     parser.add_argument("--poll", type=float, default=0.5)
     parser.add_argument("--emit-existing", action="store_true", help="Envoyer aussi le temp.raw deja present au demarrage.")
     parser.add_argument("--wheels", default="FL,FR,RL,RR", help="Ordre des roues a alimenter dans la PWA.")
@@ -35,10 +35,22 @@ async def websocket_handler(websocket):
     }))
 
     try:
-        async for _ in websocket:
-            pass
+        async for raw_message in websocket:
+            handle_client_message(raw_message)
     finally:
         clients.discard(websocket)
+
+
+def handle_client_message(raw_message):
+    global sequence_reset_requested
+
+    try:
+        message = json.loads(raw_message)
+    except json.JSONDecodeError:
+        return
+
+    if message.get("type") in {"reset_sequence", "new_analysis"}:
+        sequence_reset_requested = True
 
 
 async def broadcast(message):
@@ -55,7 +67,9 @@ async def broadcast(message):
         clients.discard(websocket)
 
 
-async def watch_raw(path, plate, poll, emit_existing, wheels):
+async def watch_raw(path, poll, emit_existing, wheels):
+    global sequence_reset_requested
+
     last_signature = None
     wheel_index = 0
     if not emit_existing:
@@ -66,6 +80,10 @@ async def watch_raw(path, plate, poll, emit_existing, wheels):
             last_signature = None
 
     while True:
+        if sequence_reset_requested:
+            wheel_index = 0
+            sequence_reset_requested = False
+
         try:
             stat = path.stat()
             signature = (stat.st_mtime_ns, stat.st_size)
@@ -77,14 +95,14 @@ async def watch_raw(path, plate, poll, emit_existing, wheels):
             last_signature = signature
             wheel = wheels[wheel_index % len(wheels)]
             wheel_index += 1
-            scan = parse_raw_scan(path, plate, wheel)
+            scan = parse_raw_scan(path, wheel)
             if scan:
                 await broadcast(scan)
 
         await asyncio.sleep(poll)
 
 
-def parse_raw_scan(path, plate, wheel):
+def parse_raw_scan(path, wheel):
     data = path.read_bytes()
 
     if len(data) <= 12:
@@ -100,21 +118,19 @@ def parse_raw_scan(path, plate, wheel):
     # We transform profile spread into stable demo metrics until the vendor
     # report/export format is identified.
     median = statistics.median(values)
-    high_band = percentile(values, 90)
+    low_band = percentile(values, 25)
+    high_band = percentile(values, 95)
     spread = max(0, high_band - median)
-    tire = clamp(round(spread / 2.5, 1), 1.0, 8.0)
-    disk = clamp(round((median / 4.0), 1), 1.0, 4.0)
+    tire = clamp(round(spread / 12.0, 1), 1.0, 8.0)
 
     return {
         "type": "scan",
         "source": "FACOM temp.raw",
         "time": datetime.now().isoformat(),
-        "plate": plate,
         "wheel": wheel,
         "scanner": f"SC{wheel}",
         "tire": tire,
-        "disk": disk,
-        "rawText": f"temp.raw bytes={len(data)} median={median} p90={high_band}"
+        "rawText": f"temp.raw bytes={len(data)} p25={low_band} median={median} p95={high_band}"
     }
 
 
@@ -139,7 +155,7 @@ async def main():
         print(f"Pont temp.raw actif: ws://{args.host}:{args.port}")
         print(f"Surveillance: {path}")
         print(f"Ordre roues: {', '.join(wheels)}")
-        await watch_raw(path, args.plate, args.poll, args.emit_existing, wheels)
+        await watch_raw(path, args.poll, args.emit_existing, wheels)
 
 
 if __name__ == "__main__":
