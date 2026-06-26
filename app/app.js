@@ -1,10 +1,13 @@
 import {
   initDb,
-  insertMeasurement,
-  getLatestPerWheel,
-  getVehicleHistory,
-  countMeasurements,
-  clearVehicle
+  createAnalysis,
+  updateAnalysis,
+  upsertMeasurement,
+  clearAll,
+  getAnalysis,
+  getAnalysisWheels,
+  listAnalyses,
+  countAnalyses
 } from "./db.js";
 
 const DEFAULT_CONFIG = {
@@ -22,7 +25,6 @@ const WHEELS = [
   { code: "RR", label: "Ar. droite", short: "Ar. D" }
 ];
 const WHEEL_CODES = WHEELS.map(w => w.code);
-const WHEEL_LABEL = Object.fromEntries(WHEELS.map(w => [w.code, w.short]));
 
 const DEFAULT_SCANNERS = [
   { id: "SC1", wheel: "FL" },
@@ -49,6 +51,7 @@ const STATUS_CHIP_LABELS = {
 };
 
 const PLATE_PATTERN = /^[A-Z]{2}-\d{3}-[A-Z]{2}$/;
+const PAGE_SIZE = 8;
 
 const state = {
   device: null,
@@ -56,8 +59,11 @@ const state = {
   bridgeSocket: null,
   simulationIndex: 0,
   activePlate: null,
+  currentAnalysisId: null,
   scanners: [],
-  wheels: emptyWheels()
+  wheels: emptyWheels(),
+  view: "measure",
+  dash: { search: "", status: "", sortKey: "updated_at", sortDir: "desc", page: 1 }
 };
 
 function emptyWheels() {
@@ -73,11 +79,9 @@ const elements = {
   alertText: document.querySelector("#alertText"),
   statusChip: document.querySelector("#statusChip"),
   currentPlate: document.querySelector("#currentPlate"),
-  scanRows: document.querySelector("#scanRows"),
   connectionStatus: document.querySelector("#connectionStatus"),
   connectionStatusMirror: document.querySelector("#connectionStatusMirror"),
   wheelCount: document.querySelector("#wheelCount"),
-  scanCount: document.querySelector("#scanCount"),
   lastScan: document.querySelector("#lastScan"),
   connectButton: document.querySelector("#connectButton"),
   simulateButton: document.querySelector("#simulateButton"),
@@ -94,7 +98,22 @@ const elements = {
   plateForm: document.querySelector("#plateForm"),
   plateInput: document.querySelector("#plateInput"),
   plateError: document.querySelector("#plateError"),
-  changeVehicleButton: document.querySelector("#changeVehicleButton")
+  changeVehicleButton: document.querySelector("#changeVehicleButton"),
+  viewMeasure: document.querySelector("#viewMeasure"),
+  viewDashboard: document.querySelector("#viewDashboard"),
+  viewTabs: [...document.querySelectorAll(".view-tab")],
+  dashSearch: document.querySelector("#dashSearch"),
+  dashStatus: document.querySelector("#dashStatus"),
+  dashRows: document.querySelector("#dashRows"),
+  dashPrev: document.querySelector("#dashPrev"),
+  dashNext: document.querySelector("#dashNext"),
+  dashPageInfo: document.querySelector("#dashPageInfo"),
+  sortButtons: [...document.querySelectorAll(".th-sort")],
+  detailOverlay: document.querySelector("#detailOverlay"),
+  detailPlate: document.querySelector("#detailPlate"),
+  detailTime: document.querySelector("#detailTime"),
+  detailChip: document.querySelector("#detailChip"),
+  detailClose: document.querySelector("#detailClose")
 };
 
 loadConfig();
@@ -104,7 +123,12 @@ openPlateGate();
 render();
 
 initDb()
-  .then(() => render())
+  .then(() => {
+    render();
+    if (state.view === "dashboard") {
+      renderDashboard();
+    }
+  })
   .catch(error => {
     console.warn("SQLite indisponible, historique non persistant", error);
     setConnection("Historique non persistant");
@@ -137,6 +161,50 @@ elements.configForm.addEventListener("submit", event => {
   setConnection("Configuration BLE sauvegardée");
 });
 
+// --- Navigation entre vues ---
+
+for (const tab of elements.viewTabs) {
+  tab.addEventListener("click", () => setView(tab.dataset.view));
+}
+
+elements.dashSearch.addEventListener("input", () => {
+  state.dash.search = elements.dashSearch.value.trim();
+  state.dash.page = 1;
+  renderDashboard();
+});
+
+elements.dashStatus.addEventListener("change", () => {
+  state.dash.status = elements.dashStatus.value;
+  state.dash.page = 1;
+  renderDashboard();
+});
+
+for (const button of elements.sortButtons) {
+  button.addEventListener("click", () => toggleSort(button.dataset.sort));
+}
+
+elements.dashPrev.addEventListener("click", () => changePage(-1));
+elements.dashNext.addEventListener("click", () => changePage(1));
+elements.detailClose.addEventListener("click", closeDetail);
+elements.detailOverlay.addEventListener("click", event => {
+  if (event.target === elements.detailOverlay) {
+    closeDetail();
+  }
+});
+
+function setView(view) {
+  state.view = view;
+  const isMeasure = view === "measure";
+  elements.viewMeasure.hidden = !isMeasure;
+  elements.viewDashboard.hidden = isMeasure;
+  for (const tab of elements.viewTabs) {
+    tab.classList.toggle("is-active", tab.dataset.view === view);
+  }
+  if (!isMeasure) {
+    renderDashboard();
+  }
+}
+
 // --- Plaque ---
 
 // Insertion auto des tirets au format SIV : 2 lettres, 3 chiffres, 2 lettres.
@@ -163,28 +231,15 @@ function submitPlate() {
     return;
   }
 
+  // Nouvelle selection = nouvelle analyse (creee a la premiere mesure).
   state.activePlate = plate;
   state.wheels = emptyWheels();
-  loadVehicle(plate);
+  state.currentAnalysisId = null;
   elements.plateGate.classList.remove("visible");
+  setView("measure");
   setScanControls(true);
   setConnection(`Véhicule ${plate} prêt au scan`);
   render();
-}
-
-// Restaure la derniere mesure connue de chaque roue depuis SQLite.
-function loadVehicle(plate) {
-  for (const row of getLatestPerWheel(plate)) {
-    if (WHEEL_CODES.includes(row.wheel)) {
-      state.wheels[row.wheel] = {
-        tire: row.tire,
-        disk: row.disk,
-        status: row.status,
-        scannerId: row.scanner_id,
-        ts: row.ts
-      };
-    }
-  }
 }
 
 function setScanControls(enabled) {
@@ -280,7 +335,6 @@ function resolveWheel(scan) {
       return match.wheel;
     }
   }
-  // Repli : avec un seul scanner configure, tout va sur sa roue.
   if (state.scanners.length === 1) {
     return state.scanners[0].wheel;
   }
@@ -495,15 +549,14 @@ function recordMeasurement(scan) {
   const status = getStatus({ tire, disk });
   const ts = scan.time ? new Date(scan.time).toISOString() : new Date().toISOString();
 
-  state.wheels[wheel] = {
-    tire,
-    disk,
-    status,
-    scannerId: scan.scanner ?? null,
-    ts
-  };
+  state.wheels[wheel] = { tire, disk, status, scannerId: scan.scanner ?? null, ts };
 
-  insertMeasurement({
+  // Cree l'analyse a la premiere mesure de la session.
+  if (!state.currentAnalysisId) {
+    state.currentAnalysisId = createAnalysis(state.activePlate, ts);
+  }
+
+  upsertMeasurement(state.currentAnalysisId, {
     plate: state.activePlate,
     wheel,
     tire,
@@ -513,41 +566,47 @@ function recordMeasurement(scan) {
     ts
   });
 
+  const overall = overallStatus(measuredWheels());
+  if (state.currentAnalysisId) {
+    updateAnalysis(state.currentAnalysisId, overall, ts);
+  }
+
   elements.scannerLabel.textContent =
-    `Scanner FACOM SCANDIAG · ${scan.source || "FACOM SCANDIAG"} · ${WHEEL_LABEL[wheel]}`;
+    `Scanner FACOM SCANDIAG · ${scan.source || "FACOM SCANDIAG"} · ${shortLabel(wheel)}`;
   render();
+  if (state.view === "dashboard") {
+    renderDashboard();
+  }
 }
 
-// --- Rendu ---
+// --- Rendu vue Mesure ---
 
 function render() {
-  const measured = WHEEL_CODES.map(code => state.wheels[code]).filter(Boolean);
+  const measured = measuredWheels();
   const overall = overallStatus(measured);
 
   elements.currentPlate.textContent = state.activePlate || "--";
   elements.lastScan.textContent = state.activePlate || "--";
   elements.wheelCount.textContent = `${measured.length} / 4`;
-  elements.scanCount.textContent = String(state.activePlate ? countMeasurements(state.activePlate) : 0);
 
-  renderWheels();
-  renderHistory();
+  paintWheels("wheel", state.wheels);
 
   if (!state.activePlate) {
-    setStatusChip("idle");
+    applyChip(elements.statusChip, "idle");
     hideAlert();
     setScannerState("Scanner FACOM SCANDIAG · en attente de tronçon", "waiting");
     return;
   }
 
   if (!measured.length) {
-    setStatusChip("ready");
+    applyChip(elements.statusChip, "ready");
     hideAlert();
     elements.scanCard.className = "scan-card";
     elements.scannerDot.className = "scanner-dot live";
     return;
   }
 
-  setStatusChip(overall);
+  applyChip(elements.statusChip, overall);
 
   if (overall === "CRITIQUE") {
     elements.scanCard.className = "scan-card critical";
@@ -567,10 +626,14 @@ function render() {
   }
 }
 
-function renderWheels() {
+// Remplit les cellules de roue d'un plan (prefixe d'id : "wheel" ou "dWheel").
+function paintWheels(prefix, wheels) {
   for (const code of WHEEL_CODES) {
-    const cell = document.querySelector(`#wheel${code}`);
-    const data = state.wheels[code];
+    const cell = document.querySelector(`#${prefix}${code}`);
+    if (!cell) {
+      continue;
+    }
+    const data = wheels[code];
     const tireField = cell.querySelector('[data-field="tire"]');
     const diskField = cell.querySelector('[data-field="disk"]');
 
@@ -581,49 +644,24 @@ function renderWheels() {
       continue;
     }
 
-    cell.dataset.status = data.status.toLowerCase();
+    cell.dataset.status = String(data.status).toLowerCase();
     tireField.textContent = `${formatNumber(data.tire)} mm`;
     diskField.textContent = `${formatNumber(data.disk)} mm`;
   }
 }
 
-function renderHistory() {
-  const history = state.activePlate ? getVehicleHistory(state.activePlate, 16) : [];
-
-  if (!history.length) {
-    elements.scanRows.innerHTML =
-      '<tr class="empty-row"><td colspan="5">Aucune mesure enregistrée</td></tr>';
-    return;
-  }
-
-  elements.scanRows.replaceChildren(...history.map(createRow));
-}
-
-function createRow(entry) {
-  const status = entry.status || "";
-  const row = document.createElement("tr");
-  const values = [
-    formatTime(new Date(entry.ts)),
-    WHEEL_LABEL[entry.wheel] || entry.wheel,
-    formatNumber(entry.tire),
-    formatNumber(entry.disk),
-    status
-  ];
-
-  for (const value of values) {
-    const cell = document.createElement("td");
-    cell.textContent = value;
-    row.append(cell);
-  }
-
-  row.lastElementChild.className = `status-${status.toLowerCase()}`;
-  return row;
+function measuredWheels() {
+  return WHEEL_CODES.map(code => state.wheels[code]).filter(Boolean);
 }
 
 function overallStatus(measured) {
-  return measured.reduce((worst, wheel) => {
-    return STATUS_RANK[wheel.status] > STATUS_RANK[worst] ? wheel.status : worst;
-  }, "CONFORME");
+  if (!measured.length) {
+    return "CONFORME";
+  }
+  return measured.reduce(
+    (worst, wheel) => (STATUS_RANK[wheel.status] > STATUS_RANK[worst] ? wheel.status : worst),
+    "CONFORME"
+  );
 }
 
 function getStatus(scan) {
@@ -636,11 +674,128 @@ function getStatus(scan) {
   return "CONFORME";
 }
 
-function setStatusChip(status) {
+function applyChip(chip, status) {
   const key = status in STATUS_CHIP_LABELS ? status : "idle";
-  elements.statusChip.textContent = STATUS_CHIP_LABELS[key];
-  elements.statusChip.dataset.status =
-    key === "idle" || key === "ready" ? key : key.toLowerCase();
+  chip.textContent = STATUS_CHIP_LABELS[key];
+  chip.dataset.status = key === "idle" || key === "ready" ? key : key.toLowerCase();
+}
+
+function shortLabel(code) {
+  return (WHEELS.find(w => w.code === code) || {}).short || code;
+}
+
+// --- Dashboard ---
+
+function renderDashboard() {
+  const filter = { search: state.dash.search, status: state.dash.status };
+  const total = countAnalyses(filter);
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  state.dash.page = Math.min(Math.max(state.dash.page, 1), pages);
+  const offset = (state.dash.page - 1) * PAGE_SIZE;
+
+  const analyses = listAnalyses({
+    ...filter,
+    sortKey: state.dash.sortKey,
+    sortDir: state.dash.sortDir,
+    limit: PAGE_SIZE,
+    offset
+  });
+
+  if (!analyses.length) {
+    elements.dashRows.innerHTML = '<tr class="empty-row"><td colspan="3">Aucune analyse</td></tr>';
+  } else {
+    elements.dashRows.replaceChildren(...analyses.map(buildDashRow));
+  }
+
+  elements.dashPageInfo.textContent =
+    `Page ${state.dash.page} / ${pages} · ${total} analyse${total > 1 ? "s" : ""}`;
+  elements.dashPrev.disabled = state.dash.page <= 1;
+  elements.dashNext.disabled = state.dash.page >= pages;
+
+  for (const button of elements.sortButtons) {
+    const active = button.dataset.sort === state.dash.sortKey;
+    button.classList.toggle("is-active", active);
+    button.dataset.dir = active ? state.dash.sortDir : "";
+  }
+}
+
+function buildDashRow(analysis) {
+  const row = document.createElement("tr");
+  row.className = "dash-row";
+  row.tabIndex = 0;
+  row.setAttribute("role", "button");
+
+  const plateCell = document.createElement("td");
+  plateCell.className = "dash-plate";
+  plateCell.textContent = analysis.plate;
+
+  const statusCell = document.createElement("td");
+  statusCell.append(statusBadge(analysis.status));
+
+  const timeCell = document.createElement("td");
+  timeCell.className = "dash-time";
+  timeCell.textContent = formatDateTime(analysis.updated_at);
+
+  row.append(plateCell, statusCell, timeCell);
+  row.addEventListener("click", () => openDetail(analysis.id));
+  row.addEventListener("keydown", event => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      openDetail(analysis.id);
+    }
+  });
+  return row;
+}
+
+function statusBadge(status) {
+  const span = document.createElement("span");
+  span.className = "status-chip status-chip-sm";
+  applyChip(span, status || "idle");
+  return span;
+}
+
+function toggleSort(key) {
+  if (state.dash.sortKey === key) {
+    state.dash.sortDir = state.dash.sortDir === "asc" ? "desc" : "asc";
+  } else {
+    state.dash.sortKey = key;
+    state.dash.sortDir = key === "plate" ? "asc" : "desc";
+  }
+  state.dash.page = 1;
+  renderDashboard();
+}
+
+function changePage(delta) {
+  state.dash.page += delta;
+  renderDashboard();
+}
+
+// --- Detail d'une analyse ---
+
+function openDetail(id) {
+  const analysis = getAnalysis(id);
+  if (!analysis) {
+    return;
+  }
+
+  const wheels = emptyWheels();
+  for (const row of getAnalysisWheels(id)) {
+    if (WHEEL_CODES.includes(row.wheel)) {
+      wheels[row.wheel] = { tire: row.tire, disk: row.disk, status: row.status, ts: row.ts };
+    }
+  }
+
+  elements.detailPlate.textContent = analysis.plate;
+  elements.detailTime.textContent = formatDateTime(analysis.updated_at);
+  applyChip(elements.detailChip, analysis.status || "idle");
+  paintWheels("dWheel", wheels);
+
+  elements.detailOverlay.hidden = false;
+  elements.detailClose.focus();
+}
+
+function closeDetail() {
+  elements.detailOverlay.hidden = true;
 }
 
 // --- Decodage trames ---
@@ -765,12 +920,11 @@ function hideAlert() {
 }
 
 function clearHistory() {
-  if (!state.activePlate) {
-    return;
-  }
-  clearVehicle(state.activePlate);
+  clearAll();
   state.wheels = emptyWheels();
+  state.currentAnalysisId = null;
   render();
+  renderDashboard();
 }
 
 function getConfig() {
@@ -801,12 +955,14 @@ function formatNumber(value) {
   }).format(value);
 }
 
-function formatTime(value) {
+function formatDateTime(value) {
   return new Intl.DateTimeFormat("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
     hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit"
-  }).format(value);
+    minute: "2-digit"
+  }).format(new Date(value));
 }
 
 // Expose la connexion BLE reelle si besoin (bouton dedie eventuel).
