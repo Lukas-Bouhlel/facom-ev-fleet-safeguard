@@ -371,11 +371,12 @@ def read_number(text, pattern):
 
 
 async def simulate_loop():
+    # Un echantillon par scanner : chaque trame alimente la roue mappee cote PWA.
     samples = [
-        {"plate": "AY-389-IM", "tire": 4.8, "disk": 1.7},
-        {"plate": "JV-524-OE", "tire": 5.6, "disk": 2.4},
-        {"plate": "OW-134-EU", "tire": 5.7, "disk": 1.3},
-        {"plate": "QA-912-VE", "tire": 2.7, "disk": 2.1}
+        {"scanner": "SC1", "wheel": "FL", "tire": 4.8, "disk": 1.7},
+        {"scanner": "SC2", "wheel": "FR", "tire": 5.6, "disk": 2.4},
+        {"scanner": "SC3", "wheel": "RL", "tire": 5.7, "disk": 1.3},
+        {"scanner": "SC4", "wheel": "RR", "tire": 2.7, "disk": 2.1}
     ]
     index = 0
 

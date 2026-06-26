@@ -1,10 +1,13 @@
-const CACHE_NAME = "scandiag-monitoring-v2";
+const CACHE_NAME = "scandiag-monitoring-v4";
 const ASSETS = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.js",
-  "./manifest.webmanifest"
+  "./db.js",
+  "./manifest.webmanifest",
+  "./vendor/sqljs/sql-wasm.js",
+  "./vendor/sqljs/sql-wasm.wasm"
 ];
 
 self.addEventListener("install", event => {
