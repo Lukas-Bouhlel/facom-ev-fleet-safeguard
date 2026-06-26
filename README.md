@@ -5,6 +5,7 @@ Livrables disponibles :
 - Documentation Partie 1 : `docs/partie-1-connexion-scandiag.md`
 - Prompt Partie 2 : `docs/partie-2-prompt-pwa-monitoring.md`
 - Logiciel local Partie 3 : `docs/partie-3-logiciel-local.md`
+- Notes reverse engineering : `docs/reverse-engineering-scandiag.md`
 - PWA Monitoring EV avec simulation et Web Bluetooth : `app/index.html`
 
 ## Lancer le POC
@@ -34,3 +35,19 @@ python scandiag_bridge.py --list-services
 ```
 
 Puis ouvrir la PWA et cliquer `Connecter Logiciel Local`.
+
+## Trouver les sorties du logiciel FACOM
+
+Juste apres un scan dans le logiciel officiel :
+
+```powershell
+cd bridge
+.\.venv\Scripts\Activate.ps1
+python find_facom_outputs.py --minutes 10
+```
+
+Si `temp.raw` est mis a jour par FACOM :
+
+```powershell
+python temp_raw_bridge.py --plate AY-389-IM
+```

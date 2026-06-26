@@ -34,7 +34,13 @@ def build_parser():
     parser.add_argument("--list-services", action="store_true")
     parser.add_argument("--list-serial", action="store_true", help="Lister les ports COM disponibles.")
     parser.add_argument("--serial-port", help="Lire le SCANDIAG via un port COM Bluetooth Classic, ex: COM5.")
+    parser.add_argument("--serial-auto", action="store_true", help="Choisir automatiquement un port COM Bluetooth SPP.")
     parser.add_argument("--serial-baudrate", type=int, default=9600)
+    parser.add_argument("--serial-debug", action="store_true", help="Afficher les octets recus sur le port serie.")
+    parser.add_argument("--serial-write", action="append", default=[], help="Envoyer une commande ASCII au port serie.")
+    parser.add_argument("--serial-write-hex", action="append", default=[], help="Envoyer une commande hex, ex: 02 53 43 41 4E 03.")
+    parser.add_argument("--serial-crlf", action="store_true", help="Ajouter CRLF aux commandes ASCII envoyees.")
+    parser.add_argument("--serial-log", help="Sauvegarder les trames recues dans un fichier.")
     parser.add_argument("--simulate", action="store_true")
     return parser
 
@@ -73,6 +79,19 @@ def list_serial_ports():
         print(f"- {details}")
 
     return ports
+
+
+def choose_serial_port():
+    ports = list_serial_ports()
+    bluetooth_ports = [
+        port for port in ports
+        if "BTHENUM" in (port.hwid or "") or "Bluetooth" in (port.description or "")
+    ]
+
+    if not bluetooth_ports:
+        raise RuntimeError("Aucun port COM Bluetooth detecte.")
+
+    return bluetooth_ports[0].device
 
 
 async def broadcast(message):
@@ -187,7 +206,11 @@ async def connect_scandiag(args):
 
 
 async def read_serial(args):
-    list_serial_ports()
+    if args.serial_auto:
+        args.serial_port = choose_serial_port()
+    else:
+        list_serial_ports()
+
     loop = asyncio.get_running_loop()
     await broadcast({
         "type": "status",
@@ -196,16 +219,93 @@ async def read_serial(args):
     })
 
     def worker():
-        with serial.Serial(args.serial_port, args.serial_baudrate, timeout=1) as port:
-            print(f"Lecture {args.serial_port} a {args.serial_baudrate} bauds")
-            while True:
-                line = port.readline()
-                if not line:
-                    continue
-                message = decode_frame(line)
-                asyncio.run_coroutine_threadsafe(broadcast(message), loop)
+        try:
+            with serial.Serial(args.serial_port, args.serial_baudrate, timeout=1) as port:
+                print(f"Lecture {args.serial_port} a {args.serial_baudrate} bauds")
+                send_startup_commands(port, args)
+                buffer = bytearray()
+                while True:
+                    chunk = port.read(port.in_waiting or 1)
+                    if not chunk:
+                        if buffer:
+                            flush_serial_buffer(buffer, args, loop)
+                        continue
+
+                    buffer.extend(chunk)
+
+                    if args.serial_debug:
+                        print(f"RX {args.serial_port}: {to_hex(chunk)}")
+
+                    while b"\n" in buffer or b"\r" in buffer:
+                        split_at = min(
+                            index for index in [
+                                buffer.find(b"\n"),
+                                buffer.find(b"\r")
+                            ] if index != -1
+                        )
+                        frame = bytes(buffer[:split_at])
+                        del buffer[:split_at + 1]
+                        if frame:
+                            emit_serial_frame(frame, args, loop)
+
+                    if len(buffer) >= 4 and not looks_like_text(buffer):
+                        flush_serial_buffer(buffer, args, loop)
+        except serial.SerialException as error:
+            message = {
+                "type": "error",
+                "title": f"Port {args.serial_port} indisponible",
+                "detail": str(error)
+            }
+            asyncio.run_coroutine_threadsafe(broadcast(message), loop)
+            print(f"Erreur port serie: {error}")
 
     await asyncio.to_thread(worker)
+
+
+def flush_serial_buffer(buffer, args, loop):
+    frame = bytes(buffer)
+    buffer.clear()
+    emit_serial_frame(frame, args, loop)
+
+
+def emit_serial_frame(frame, args, loop):
+    if args.serial_debug:
+        print(f"FRAME {args.serial_port}: {to_hex(frame)} | {frame!r}")
+
+    if args.serial_log:
+        with open(args.serial_log, "a", encoding="utf-8") as log_file:
+            log_file.write(f"{datetime.now().isoformat()} {to_hex(frame)} {frame!r}\n")
+
+    message = decode_frame(frame)
+    asyncio.run_coroutine_threadsafe(broadcast(message), loop)
+
+
+def send_startup_commands(port, args):
+    for command in args.serial_write:
+        payload = command.encode("utf-8")
+        if args.serial_crlf:
+            payload += b"\r\n"
+        port.write(payload)
+        print(f"TX {args.serial_port}: {to_hex(payload)} | {payload!r}")
+
+    for command in args.serial_write_hex:
+        payload = parse_hex_command(command)
+        port.write(payload)
+        print(f"TX {args.serial_port}: {to_hex(payload)} | {payload!r}")
+
+
+def parse_hex_command(command):
+    compact = command.replace("0x", "").replace(",", " ").replace(";", " ")
+    parts = [part for part in compact.split() if part]
+    return bytes(int(part, 16) for part in parts)
+
+
+def looks_like_text(data):
+    return all(byte in b"\r\n\t" or 32 <= byte <= 126 for byte in data)
+
+
+def to_hex(data):
+    return " ".join(f"{byte:02X}" for byte in data)
 
 
 def decode_frame(data):
@@ -311,7 +411,7 @@ async def main():
             list_serial_ports()
             return
 
-        if args.serial_port:
+        if args.serial_port or args.serial_auto:
             worker = asyncio.create_task(read_serial(args))
         elif args.simulate:
             worker = asyncio.create_task(simulate_loop())
