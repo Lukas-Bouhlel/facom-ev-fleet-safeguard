@@ -47,6 +47,10 @@ await navigator.bluetooth.requestDevice({
 });
 ```
 
+Si les UUID ne sont pas encore connus, l'application peut tout de meme ouvrir la fenetre native de scan et detecter un appareil dont le nom commence par `FACOM_SCANDIAG_`. Cette etape valide que le SCANDIAG est visible en Bluetooth. En revanche, Web Bluetooth ne permet pas a une page web de lire librement tous les services proprietaires inconnus : pour acceder aux donnees GATT, le service UUID doit etre declare dans `optionalServices`.
+
+Le code affiche sur ou sous l'appareil correspond generalement a un identifiant, numero de serie ou code d'appairage. Il peut aider a choisir le bon appareil dans la fenetre Bluetooth, mais il ne remplace pas les UUID GATT necessaires a la lecture des mesures.
+
 ## Reverse engineering BLE
 
 Les UUID du service et de la caracteristique doivent etre captures avant l'integration finale.
@@ -127,6 +131,29 @@ Une fois le format confirme, le decodeur peut etre verrouille sur le protocole e
 - Le navigateur affiche toujours une fenetre native de selection Bluetooth.
 - iOS Safari ne supporte pas Web Bluetooth de maniere exploitable pour ce POC.
 - Les UUID proprietaires doivent etre connus avant l'acces aux services GATT depuis la PWA.
+
+## Note sur les executables et drivers constructeur
+
+Les fichiers observes hors depot montrent un installeur `Facom_ScanDiag_setup.exe` signe par `Texa S.p.a.` ainsi que des drivers Bluetooth WIDCOMM et des drivers USB TEXA/FTDI/Cypress. Ils peuvent etre utiles pour installer l'application Windows constructeur ou pour analyser l'ecosysteme technique du produit, mais ils ne sont pas necessaires au fonctionnement normal d'une PWA Web Bluetooth.
+
+La documentation constructeur indique que le logiciel SCANDIAG propose des fonctions de configuration automatique pour les produits equipes de la technologie Bluetooth. Ces fonctions necessitent un PC equipe de peripheriques Bluetooth compatibles avec les piles suivantes :
+
+- Microsoft ;
+- WIDCOMM 1.4.2 Build 10 ou plus ;
+- TOSHIBA 4 ou plus.
+
+Si la pile Bluetooth du PC n'est pas compatible, la configuration automatique du logiciel officiel peut echouer. Dans ce cas, le constructeur recommande d'utiliser la configuration Bluetooth manuelle du systeme d'exploitation. Il recommande aussi d'eviter l'ajout d'une cle USB Bluetooth sur un PC qui dispose deja d'un Bluetooth integre.
+
+Impact pour le POC web : cette contrainte concerne le logiciel Windows officiel, pas directement l'API Web Bluetooth. La PWA s'appuie sur le Bluetooth expose par Chrome ou Edge et ne pilote pas les drivers constructeur. En revanche, si le SCANDIAG n'apparait pas dans le scan navigateur, il faut verifier la pile Bluetooth Windows, l'etat d'appairage de l'appareil et la presence eventuelle d'un conflit entre Bluetooth integre et dongle USB.
+
+Pour un usage realiste en entrepot, la connexion cible reste le BLE :
+
+- pas de cable USB entre le scanner et la tablette ;
+- scan natif Bluetooth depuis Chrome ou Edge ;
+- selection du SCANDIAG visible en advertising ;
+- lecture des mesures via notifications GATT.
+
+Les drivers USB identifies mentionnent notamment `Texa Uniprobe`, `TEXA Navigator` et des ports `FTDIBUS\COMPORT`. Ils ne doivent pas etre integres au livrable web. Il est conseille de les conserver uniquement jusqu'a la fin du mapping BLE, puis de les archiver hors depot ou de les supprimer si l'equipe n'en a plus besoin.
 
 ## Critere de validation du POC
 

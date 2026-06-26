@@ -67,13 +67,17 @@
       </section>
 
       <section class="actions">
-        <button type="button" id="connectButton">Connecter FACOM SCANDIAG</button>
+        <button type="button" id="connectButton">Connecter Logiciel Local</button>
         <button type="button" id="simulateButton">Simuler Scan Entrant</button>
       </section>
 
       <details class="ble-config">
-        <summary>Configuration BLE avancee</summary>
+        <summary>Configuration avancee</summary>
         <form id="configForm">
+          <label>
+            Pont local
+            <input id="bridgeUrl" name="bridgeUrl" value="ws://localhost:8765" autocomplete="off">
+          </label>
           <label>
             Prefixe appareil
             <input id="namePrefix" name="namePrefix" value="FACOM_SCANDIAG_" autocomplete="off">

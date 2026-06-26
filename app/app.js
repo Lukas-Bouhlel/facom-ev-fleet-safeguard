@@ -1,4 +1,5 @@
 const DEFAULT_CONFIG = {
+  bridgeUrl: "ws://localhost:8765",
   namePrefix: "FACOM_SCANDIAG_",
   serviceUuid: "",
   characteristicUuid: ""
@@ -22,6 +23,7 @@ const THRESHOLDS = {
 const state = {
   device: null,
   characteristic: null,
+  bridgeSocket: null,
   scans: [],
   simulationIndex: 0
 };
@@ -44,6 +46,7 @@ const elements = {
   disconnectButton: document.querySelector("#disconnectButton"),
   clearButton: document.querySelector("#clearButton"),
   configForm: document.querySelector("#configForm"),
+  bridgeUrl: document.querySelector("#bridgeUrl"),
   namePrefix: document.querySelector("#namePrefix"),
   serviceUuid: document.querySelector("#serviceUuid"),
   characteristicUuid: document.querySelector("#characteristicUuid")
@@ -56,7 +59,7 @@ if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("./service-worker.js").catch(() => undefined);
 }
 
-elements.connectButton.addEventListener("click", connect);
+elements.connectButton.addEventListener("click", connectBridge);
 elements.simulateButton.addEventListener("click", simulateScan);
 elements.disconnectButton.addEventListener("click", disconnect);
 elements.clearButton.addEventListener("click", clearScans);
@@ -77,24 +80,34 @@ async function connect() {
     return;
   }
 
-  if (!config.serviceUuid || !config.characteristicUuid) {
-    setConnection("UUID BLE requis");
-    showAlert("Configuration incomplete", "Renseigner les UUID du service et de la caracteristique apres mapping BLE.");
-    return;
-  }
-
   elements.connectButton.disabled = true;
   setConnection("Scan Bluetooth...");
   setScannerState("SCANNER FACOM SCANDIAG : SELECTION APPAREIL", "waiting");
 
   try {
-    const device = await navigator.bluetooth.requestDevice({
-      filters: [{ namePrefix: config.namePrefix || DEFAULT_CONFIG.namePrefix }],
-      optionalServices: [config.serviceUuid]
-    });
+    const requestOptions = {
+      filters: [{ namePrefix: config.namePrefix || DEFAULT_CONFIG.namePrefix }]
+    };
+
+    if (config.serviceUuid) {
+      requestOptions.optionalServices = [config.serviceUuid];
+    }
+
+    const device = await navigator.bluetooth.requestDevice(requestOptions);
 
     state.device = device;
     state.device.addEventListener("gattserverdisconnected", handleDisconnected);
+
+    if (!config.serviceUuid || !config.characteristicUuid) {
+      setConnection("SCANDIAG detecte");
+      setScannerState(`SCANNER FACOM SCANDIAG : ${device.name || "APPAREIL TROUVE"}`, "live");
+      showAlert(
+        "Appareil detecte",
+        "Le navigateur a trouve le SCANDIAG. Il faut maintenant mapper le service UUID et la caracteristique UUID pour lire les mesures."
+      );
+      return;
+    }
+
     setConnection("Connexion GATT...");
 
     const server = await device.gatt.connect();
@@ -116,6 +129,75 @@ async function connect() {
   }
 }
 
+function connectBridge() {
+  const config = getConfig();
+  saveConfig(config);
+
+  if (state.bridgeSocket && state.bridgeSocket.readyState === WebSocket.OPEN) {
+    setConnection("Connecte (logiciel local)");
+    return;
+  }
+
+  setConnection("Connexion logiciel...");
+  setScannerState("SCANNER FACOM SCANDIAG : PONT LOCAL", "waiting");
+
+  const socket = new WebSocket(config.bridgeUrl || DEFAULT_CONFIG.bridgeUrl);
+  state.bridgeSocket = socket;
+
+  socket.addEventListener("open", () => {
+    setConnection("Connecte (logiciel local)");
+    setScannerState("SCANNER FACOM SCANDIAG : EN ATTENTE DE MESURE", "live");
+  });
+
+  socket.addEventListener("message", event => {
+    handleBridgeMessage(event.data);
+  });
+
+  socket.addEventListener("close", () => {
+    if (state.bridgeSocket === socket) {
+      state.bridgeSocket = null;
+    }
+    setConnection("Logiciel deconnecte");
+    setScannerState("SCANNER FACOM SCANDIAG : PONT LOCAL ABSENT", "waiting");
+  });
+
+  socket.addEventListener("error", () => {
+    setConnection("Logiciel introuvable");
+    showAlert("Pont local indisponible", "Lancer le logiciel SCANDIAG Bridge, puis reconnecter l'interface.");
+  });
+}
+
+function handleBridgeMessage(rawMessage) {
+  let message;
+
+  try {
+    message = JSON.parse(rawMessage);
+  } catch {
+    showAlert("Message local invalide", rawMessage);
+    return;
+  }
+
+  if (message.type === "status") {
+    setConnection(message.label || "Logiciel local");
+    if (message.detail) {
+      setScannerState(`SCANNER FACOM SCANDIAG : ${message.detail}`, "live");
+    }
+    return;
+  }
+
+  if (message.type === "error") {
+    showAlert(message.title || "Erreur logiciel local", message.detail || "Erreur inconnue.");
+    return;
+  }
+
+  if (message.type === "scan") {
+    const scan = normalizeScan(message);
+    if (scan) {
+      addScan({ ...scan, source: message.source || "Logiciel local" });
+    }
+  }
+}
+
 function disconnect() {
   if (state.characteristic) {
     state.characteristic.removeEventListener("characteristicvaluechanged", handleNotification);
@@ -127,6 +209,12 @@ function disconnect() {
 
   state.characteristic = null;
   state.device = null;
+
+  if (state.bridgeSocket) {
+    state.bridgeSocket.close();
+    state.bridgeSocket = null;
+  }
+
   setConnection("En Attente");
   setScannerState("SCANNER FACOM SCANDIAG : EN ATTENTE DE TRONCON", "waiting");
 }
@@ -162,7 +250,7 @@ function addScan(scan) {
     plate: scan.plate || generatePlate(),
     tire: Number(scan.tire),
     disk: Number(scan.disk),
-    time: scan.time || new Date(),
+    time: scan.time ? new Date(scan.time) : new Date(),
     source: scan.source || "FACOM SCANDIAG"
   };
 
@@ -257,12 +345,10 @@ function decodeFrame(dataView) {
     }
   }
 
-  const tire = readNumber(text, /(?:pneu|tire|depth|value)\D*(-?\d+(?:[.,]\d+)?)/i);
-  const disk = readNumber(text, /(?:disque|disk|brake)\D*(-?\d+(?:[.,]\d+)?)/i);
-  const plate = (text.match(/[A-Z]{2}-\d{3}-[A-Z]{2}/i) || [])[0];
+  const payload = parseTextPayload(text);
 
-  if (Number.isFinite(tire) || Number.isFinite(disk)) {
-    return { hex, payload: { plate, tire, disk } };
+  if (payload) {
+    return { hex, payload };
   }
 
   if (dataView.byteLength === 4) {
@@ -278,13 +364,37 @@ function decodeFrame(dataView) {
   return { hex, payload: null };
 }
 
+function parseTextPayload(text) {
+  if (!text) {
+    return null;
+  }
+
+  if (text.startsWith("{")) {
+    try {
+      return JSON.parse(text);
+    } catch {
+      return null;
+    }
+  }
+
+  const tire = readNumber(text, /(?:pneu|tire|depth|value)\D*(-?\d+(?:[.,]\d+)?)/i);
+  const disk = readNumber(text, /(?:disque|disk|brake)\D*(-?\d+(?:[.,]\d+)?)/i);
+  const plate = (text.match(/[A-Z]{2}-\d{3}-[A-Z]{2}/i) || [])[0];
+
+  if (Number.isFinite(tire) || Number.isFinite(disk)) {
+    return { plate, tire, disk };
+  }
+
+  return null;
+}
+
 function normalizeScan(payload) {
   if (!payload) {
     return null;
   }
 
-  const tire = Number(payload.tire ?? payload.pneu ?? payload.depth ?? payload.value);
-  const disk = Number(payload.disk ?? payload.disque ?? payload.brake ?? payload.brakeDisk);
+  const tire = toNumber(payload.tire ?? payload.pneu ?? payload.depth ?? payload.value);
+  const disk = toNumber(payload.disk ?? payload.disque ?? payload.brake ?? payload.brakeDisk);
 
   if (!Number.isFinite(tire) && !Number.isFinite(disk)) {
     return null;
@@ -300,6 +410,14 @@ function normalizeScan(payload) {
 function readNumber(text, pattern) {
   const match = text.match(pattern);
   return match ? Number.parseFloat(match[1].replace(",", ".")) : Number.NaN;
+}
+
+function toNumber(value) {
+  if (value === null || value === undefined || value === "") {
+    return Number.NaN;
+  }
+
+  return Number(value);
 }
 
 function setConnection(label) {
@@ -329,6 +447,7 @@ function clearScans() {
 
 function getConfig() {
   return {
+    bridgeUrl: elements.bridgeUrl.value.trim() || DEFAULT_CONFIG.bridgeUrl,
     namePrefix: elements.namePrefix.value.trim() || DEFAULT_CONFIG.namePrefix,
     serviceUuid: elements.serviceUuid.value.trim(),
     characteristicUuid: elements.characteristicUuid.value.trim()
@@ -341,6 +460,7 @@ function saveConfig(config) {
 
 function loadConfig() {
   const saved = JSON.parse(localStorage.getItem("scandiag-ble-config") || "null") || DEFAULT_CONFIG;
+  elements.bridgeUrl.value = saved.bridgeUrl || DEFAULT_CONFIG.bridgeUrl;
   elements.namePrefix.value = saved.namePrefix || DEFAULT_CONFIG.namePrefix;
   elements.serviceUuid.value = saved.serviceUuid || "";
   elements.characteristicUuid.value = saved.characteristicUuid || "";
