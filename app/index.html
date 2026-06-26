@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#0b0b0b">
+    <title>FACOM SCANDIAG Monitoring EV</title>
+    <link rel="manifest" href="./manifest.webmanifest">
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="scan-card" id="scanCard">
+        <div class="scanner-state">
+          <span class="scanner-dot" id="scannerDot"></span>
+          <p id="scannerLabel">SCANNER FACOM SCANDIAG : EN ATTENTE DE TRONCON</p>
+        </div>
+
+        <p class="report-label">RAPPORT DE SCAN TEMPS REEL v2026</p>
+        <h1 id="currentPlate">--</h1>
+
+        <div class="current-metrics">
+          <div>
+            <span>PNEUS:</span>
+            <strong id="currentTire">-- mm</strong>
+          </div>
+          <div>
+            <span>DISQUES:</span>
+            <strong id="currentDisk">-- mm</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="alert-panel" id="alertPanel" hidden>
+        <strong id="alertTitle">ALERTE CRITIQUE</strong>
+        <span id="alertText">Controle prioritaire recommande.</span>
+      </section>
+
+      <section class="table-wrap" aria-label="Historique des scans">
+        <table>
+          <thead>
+            <tr>
+              <th>Immat.</th>
+              <th>Heure</th>
+              <th>Pneu (mm)</th>
+              <th>Disque (mm)</th>
+              <th>Statut</th>
+            </tr>
+          </thead>
+          <tbody id="scanRows">
+            <tr class="empty-row">
+              <td colspan="5">Aucun scan recu</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="status-grid">
+        <div>
+          <h2>Connexion</h2>
+          <p id="connectionStatus">En Attente</p>
+        </div>
+        <div>
+          <h2>Dernier Scan</h2>
+          <p id="lastScan">--</p>
+        </div>
+      </section>
+
+      <section class="actions">
+        <button type="button" id="connectButton">Connecter FACOM SCANDIAG</button>
+        <button type="button" id="simulateButton">Simuler Scan Entrant</button>
+      </section>
+
+      <details class="ble-config">
+        <summary>Configuration BLE avancee</summary>
+        <form id="configForm">
+          <label>
+            Prefixe appareil
+            <input id="namePrefix" name="namePrefix" value="FACOM_SCANDIAG_" autocomplete="off">
+          </label>
+          <label>
+            UUID service
+            <input id="serviceUuid" name="serviceUuid" placeholder="A renseigner apres scan BLE" autocomplete="off">
+          </label>
+          <label>
+            UUID caracteristique
+            <input id="characteristicUuid" name="characteristicUuid" placeholder="A renseigner apres scan BLE" autocomplete="off">
+          </label>
+          <div class="config-actions">
+            <button type="submit">Sauvegarder</button>
+            <button type="button" id="disconnectButton">Deconnecter</button>
+            <button type="button" id="clearButton">Effacer scans</button>
+          </div>
+        </form>
+      </details>
+    </main>
+    <script src="./app.js" type="module"></script>
+  </body>
+</html>

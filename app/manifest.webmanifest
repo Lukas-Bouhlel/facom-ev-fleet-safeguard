@@ -1,0 +1,11 @@
+{
+  "name": "FACOM SCANDIAG Monitoring EV",
+  "short_name": "SCANDIAG EV",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0b0b0b",
+  "theme_color": "#0b0b0b",
+  "description": "PWA de monitoring temps reel pour scans FACOM SCANDIAG avec simulation et connexion Web Bluetooth.",
+  "icons": []
+}

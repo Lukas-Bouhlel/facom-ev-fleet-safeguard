@@ -1,0 +1,333 @@
+:root {
+  color-scheme: dark;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #0b0b0b;
+  color: #f5f5f5;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  background: #0b0b0b;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.app-shell {
+  width: min(1560px, calc(100% - 52px));
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: clamp(28px, 5vw, 64px) 0 28px;
+}
+
+.scan-card {
+  position: relative;
+  min-height: clamp(240px, 32vw, 340px);
+  border: 7px solid #2e7d32;
+  padding: clamp(28px, 4vw, 46px);
+  overflow: hidden;
+}
+
+.scan-card.waiting {
+  border-color: transparent;
+}
+
+.scan-card.critical {
+  border-color: #b91c1c;
+}
+
+.scanner-state {
+  display: grid;
+  justify-items: center;
+  gap: 26px;
+  margin-bottom: clamp(28px, 6vw, 76px);
+  color: #8f8f8f;
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: clamp(0.95rem, 2vw, 1.55rem);
+  font-weight: 800;
+  text-align: center;
+}
+
+.scanner-state p {
+  margin: 0;
+}
+
+.scanner-dot {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #686868;
+  box-shadow: 0 0 0 0 rgba(104, 104, 104, 0.55);
+}
+
+.scanner-dot.live {
+  background: #2e7d32;
+  box-shadow: 0 0 0 10px rgba(46, 125, 50, 0.14);
+}
+
+.scanner-dot.critical {
+  background: #ef4444;
+  box-shadow: 0 0 0 10px rgba(239, 68, 68, 0.14);
+}
+
+.report-label {
+  margin: 0 0 clamp(40px, 7vw, 78px);
+  color: #2f9e44;
+  font-size: clamp(0.95rem, 1.8vw, 1.45rem);
+  font-weight: 800;
+}
+
+.critical .report-label {
+  color: #ef4444;
+}
+
+h1 {
+  margin: 0 0 clamp(42px, 6vw, 76px);
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: clamp(3.1rem, 6vw, 5.3rem);
+  line-height: 0.96;
+  letter-spacing: 0;
+}
+
+.current-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: clamp(28px, 7vw, 92px);
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: clamp(1.35rem, 3vw, 2.3rem);
+}
+
+.current-metrics div {
+  display: flex;
+  align-items: baseline;
+  gap: 18px;
+}
+
+.current-metrics span {
+  color: #c8c8c8;
+  font-weight: 900;
+}
+
+.current-metrics strong {
+  color: #ffffff;
+}
+
+.alert-panel {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 22px 0 0;
+  border: 1px solid #7f1d1d;
+  border-radius: 8px;
+  padding: 16px 20px;
+  background: rgba(127, 29, 29, 0.3);
+  color: #fecaca;
+}
+
+.alert-panel strong {
+  color: #ffffff;
+}
+
+.table-wrap {
+  margin-top: clamp(36px, 5vw, 58px);
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+th,
+td {
+  padding: 20px 26px;
+  text-align: left;
+  font-size: clamp(1rem, 2vw, 1.85rem);
+}
+
+th {
+  border-bottom: 2px solid #8b8b8b;
+  color: #dfdfdf;
+  font-weight: 900;
+}
+
+td {
+  border-bottom: 1px solid #1f1f1f;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+tbody tr:nth-child(even) {
+  background: #141414;
+}
+
+.empty-row td {
+  height: 210px;
+  color: #666666;
+  text-align: center;
+}
+
+.status-conforme {
+  color: #ffffff;
+}
+
+.status-vigilance {
+  color: #facc15;
+}
+
+.status-critique {
+  color: #ffffff;
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  width: min(92%, 1420px);
+  margin: clamp(56px, 7vw, 92px) auto 0;
+  border-top: 1px solid #333333;
+  border-bottom: 1px solid #333333;
+  padding: 28px 0;
+  text-align: center;
+}
+
+h2 {
+  margin: 0 0 24px;
+  color: #dedede;
+  font-size: clamp(1.25rem, 2.5vw, 2.1rem);
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.status-grid p {
+  margin: 0;
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: clamp(1rem, 2vw, 1.7rem);
+}
+
+.actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 46px;
+  margin-top: 36px;
+}
+
+button {
+  min-height: 104px;
+  border: 1px solid #2e2e2e;
+  border-radius: 999px;
+  background: #2b2b2b;
+  color: #ffffff;
+  padding: 18px 28px;
+  font-size: clamp(1.1rem, 2.4vw, 2rem);
+  font-weight: 650;
+  cursor: pointer;
+}
+
+button:hover,
+button:focus-visible {
+  border-color: #ffffff;
+  outline: 3px double rgba(255, 255, 255, 0.8);
+  outline-offset: 4px;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.ble-config {
+  margin-top: 28px;
+  color: #cfcfcf;
+}
+
+summary {
+  width: max-content;
+  cursor: pointer;
+  color: #9ca3af;
+  font-weight: 700;
+}
+
+.ble-config form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid #252525;
+  border-radius: 8px;
+  background: #111111;
+}
+
+label {
+  display: grid;
+  gap: 8px;
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+input {
+  width: 100%;
+  border: 1px solid #333333;
+  border-radius: 6px;
+  background: #050505;
+  color: #ffffff;
+  padding: 12px;
+}
+
+.config-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 10px;
+}
+
+.config-actions button {
+  min-height: 44px;
+  padding: 10px 14px;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 860px) {
+  .app-shell {
+    width: min(100% - 24px, 1560px);
+    padding-top: 18px;
+  }
+
+  .scan-card {
+    min-height: 310px;
+    padding: 24px;
+  }
+
+  .current-metrics {
+    display: grid;
+  }
+
+  th,
+  td {
+    min-width: 150px;
+    padding: 16px;
+  }
+
+  .status-grid,
+  .actions,
+  .ble-config form {
+    grid-template-columns: 1fr;
+  }
+
+  .actions {
+    gap: 16px;
+  }
+
+  button {
+    min-height: 78px;
+  }
+}
